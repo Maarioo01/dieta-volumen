@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dieta</title>
+<meta name="description" content="Dieta de volumen de Mario y Alba: menú semanal, recetas con cantidades y macros.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="preload" href="fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dieta">
+<meta name="theme-color" content="#ECEEE8">
+<script>
+  // Aplica el modo guardado antes de pintar (evita el parpadeo).
+  try {
+    var t = localStorage.getItem("dieta_theme_v1");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
+<style>
+  @font-face {
+    font-family: "Archivo";
+    src: url("fonts/archivo-latin.woff2") format("woff2-variations"),
+         url("fonts/archivo-latin.woff2") format("woff2");
+    font-weight: 100 900;
+    font-stretch: 62% 125%;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* ---------- Tokens ----------
+     Papel blanco y tinta negra (como una etiqueta de información nutricional);
+     el único color fuerte es el de cada plato, sacado del menú del Excel. */
+  :root {
+    --bg: #ECEEE8;
+    --paper: #FFFFFF;
+    --ink: #000000;
+    --ink-2: #393B37;
+    --muted: #686B65;
+    --line: #D5D8D0;
+    --chip: #E0E3DB;
+    --accent: #E5402A;
+    --ok: #1B8A2F;
+    --out: #B86A00;
+    --tile-ink: #000000;
+    --dish-mix: 100%;
+    --font: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111310;
+      --paper: #1A1D19;
+      --ink: #F2F3EE;
+      --ink-2: #CDD0C8;
+      --muted: #9A9E95;
+      --line: #30342E;
+      --chip: #272B25;
+      --accent: #FF6B50;
+      --ok: #55C46A;
+      --out: #F2B441;
+      --dish-mix: 84%;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111310;
+    --paper: #1A1D19;
+    --ink: #F2F3EE;
+    --ink-2: #CDD0C8;
+    --muted: #9A9E95;
+    --line: #30342E;
+    --chip: #272B25;
+    --accent: #FF6B50;
+    --ok: #55C46A;
+    --out: #F2B441;
+    --dish-mix: 84%;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  svg { display: block; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  #app { max-width: 600px; margin: 0 auto; }
+
+  /* ---------- Barra superior ---------- */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 12px;
+    background: linear-gradient(var(--bg) 78%, color-mix(in srgb, var(--bg) 0%, transparent));
+  }
+  .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand {
+    margin: 0;
+    font-size: 34px;
+    font-weight: 900;
+    font-stretch: 62%;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .brand .dot { color: var(--accent); }
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    padding: 0;
+  }
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  /* ---------- Control segmentado (píldoras) ---------- */
+  .seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--chip);
+  }
+  .seg button {
+    border: 0;
+    background: none;
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .seg button[aria-checked="true"] { background: var(--ink); color: var(--paper); }
+
+  /* ---------- Contenido ---------- */
+  main { padding: 6px 20px calc(104px + env(safe-area-inset-bottom, 0px)); }
+  .page-title {
+    margin: 4px 0 14px;
+    font-size: 34px;
+    font-weight: 850;
+    font-stretch: 68%;
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+  }
+  .page-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap; }
+  .page-head .page-title { margin-bottom: 0; }
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 30px 0 12px;
+    font-size: 21px;
+    font-weight: 800;
+    font-stretch: 72%;
+    line-height: 1.1;
+  }
+  .section-title .today {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px 3px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    font-stretch: 100%;
+    vertical-align: 3px;
+  }
+  .link-inline {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 600;
+    font-stretch: 100%;
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .card {
+    background: var(--paper);
+    border-radius: 16px;
+  }
+
+  /* ---------- Píldora de plato (color del Excel) ---------- */
+  .dish {
+    display: inline;
+    padding: 1px 7px 2px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--dish) var(--dish-mix), var(--bg));
+    color: var(--tile-ink);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* ---------- Comidas del día ---------- */
+  .meals { list-style: none; margin: 0; padding: 2px 0; }
+  .meals li + li .meal-row { border-top: 1px solid var(--line); }
+  .meal-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border: 0;
+    background: none;
+    text-align: left;
+  }
+  .meal-row[disabled] { cursor: default; }
+  .meal-ico { color: var(--muted); }
+  .meal-ico svg { width: 22px; height: 22px; }
+  .meal-type { display: block; font-size: 13px; color: var(--muted); margin-bottom: 3px; }
+  .meal-name { display: block; font-size: 16px; font-weight: 650; line-height: 1.45; }
+  .meal-name.nodata { font-weight: 500; color: var(--muted); }
+  .meal-kcal { text-align: right; white-space: nowrap; font-size: 13px; color: var(--muted); }
+  .meal-kcal b { display: block; font-size: 19px; font-weight: 800; font-stretch: 75%; color: var(--ink); line-height: 1.1; }
+  .meal-kcal .sd { font-size: 13px; color: var(--muted); }
+
+  /* ---------- Etiqueta de información nutricional ---------- */
+  .label {
+    margin-top: 12px;
+    padding: 12px 14px 12px;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+  }
+  .label-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .label-title { margin: 0; font-size: 24px; font-weight: 900; font-stretch: 66%; line-height: 1.05; }
+  .label-who { font-size: 13px; color: var(--ink-2); text-align: right; }
+  .rule { height: 1px; background: var(--ink); }
+  .rule.thick { height: 8px; margin: 7px 0 0; }
+  .rule.mid { height: 3px; }
+  .label-cols, .label-row {
+    display: grid;
+    grid-template-columns: 1fr auto 104px;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .label-cols {
+    padding: 6px 0 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--ink);
+  }
+  .label-cols span:nth-child(n+2) { text-align: right; }
+  .label-row {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--ink);
+    font-size: 15px;
+  }
+  .label-row:last-of-type { border-bottom: 0; }
+  .label-row .n { font-weight: 600; }
+  .label-row .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .label-row .t {
+    text-align: right;
+    font-size: 13px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    display: inline-flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 5px;
+  }
+  .label-row.energy { padding: 8px 0 9px; border-bottom-width: 3px; }
+  .label-row.energy .n { font-size: 16px; font-weight: 800; }
+  .label-row.energy .v b { font-size: 30px; font-weight: 900; font-stretch: 70%; line-height: 1; letter-spacing: -0.01em; }
+  .label-row.energy .v small { font-size: 14px; font-weight: 700; margin-left: 2px; }
+  .label-foot { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+  .st { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 auto; }
+  .st svg { width: 14px; height: 14px; }
+  .st.ok { color: var(--ok); }
+  .st.out { color: var(--out); font-weight: 800; font-size: 14px; line-height: 1; }
+  .label .bar {
+    position: relative;
+    height: 8px;
+    margin: 7px 0 0;
+    background: var(--chip);
+  }
+  .label .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+
+  /* ---------- Semana (mosaico con los colores del Excel) ---------- */
+  .everyday { padding: 2px 0; margin-bottom: 14px; }
+  .week-head, .week-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 1fr 48px;
+    gap: 5px;
+  }
+  .week-head { padding: 0 3px 7px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .week-head span:last-child { text-align: right; }
+  .week { display: grid; gap: 5px; }
+  .week-row {
+    width: 100%;
+    padding: 3px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    background: none;
+    text-align: left;
+    align-items: stretch;
+  }
+  .week-row.selected { border-color: var(--ink); background: var(--paper); }
+  .week-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 20px;
+    font-weight: 900;
+    font-stretch: 66%;
+  }
+  .week-day i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .tile {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--dish, var(--chip)) var(--dish-mix), var(--bg));
+    color: var(--tile-ink);
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.22;
+    overflow-wrap: anywhere;
+  }
+  .tile.plain { background: var(--chip); color: var(--muted); font-weight: 500; }
+  .week-kcal {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 800;
+    font-stretch: 72%;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.05;
+  }
+  .week-kcal small { font-size: 11px; font-weight: 600; font-stretch: 100%; color: var(--muted); }
+  .note { margin: 12px 2px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
+  /* ---------- Objetivos ---------- */
+  .targets { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .targets th, .targets td {
+    padding: 8px 4px;
+    text-align: right;
+    border-bottom: 1px solid var(--ink);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .targets thead th { font-size: 12px; font-weight: 700; color: var(--ink-2); padding-top: 6px; }
+  .targets th:first-child, .targets td:first-child { text-align: left; white-space: normal; padding-left: 0; }
+  .targets th:last-child, .targets td:last-child { padding-right: 0; }
+  .targets tbody th { font-weight: 500; }
+  .targets tbody tr:last-child th, .targets tbody tr:last-child td { border-bottom: 0; font-weight: 800; }
+  .targets tbody tr:last-child { border-top: 3px solid var(--ink); }
+
+  /* ---------- Pestañas de recetas ---------- */
+  .goal { padding: 14px 16px; margin-bottom: 16px; }
+  .goal-title { margin: 0 0 8px; font-size: 14px; color: var(--ink-2); }
+  .goal-items { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
+  .goal-items b { font-weight: 700; }
+  .recipe-list { display: grid; gap: 10px; }
+  .recipe-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+    align-items: start;
+    width: 100%;
+    padding: 14px 16px 15px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--paper);
+    text-align: left;
+  }
+  .rc-head { display: block; min-width: 0; }
+  .rc-opt { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .rc-name .dish { padding: 0 6px 1px; border-radius: 6px; }
+  .rc-name { font-size: 19px; font-weight: 800; font-stretch: 80%; line-height: 1.35; }
+  .rc-kcal { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .rc-kcal b { display: block; font-size: 24px; font-weight: 900; font-stretch: 68%; color: var(--ink); line-height: 1; }
+  .rc-macros {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    font-size: 14px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .rc-when { grid-column: 1 / -1; font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+  .empty { padding: 22px 18px 20px; }
+  .empty-ico { color: var(--muted); }
+  .empty-ico svg { width: 34px; height: 34px; }
+  .empty h3 { margin: 12px 0 6px; font-size: 22px; font-weight: 850; font-stretch: 70%; }
+  .empty p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+  .empty p + p { margin-top: 8px; }
+
+  .foot { margin: 32px 2px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+
+  /* ---------- Barra de pestañas ---------- */
+  nav.tabbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 30;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .tabbar-inner {
+    pointer-events: auto;
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line);
+  }
+  .tab-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 0 4px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tab-btn .ico {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 28px;
+    border-radius: 999px;
+  }
+  .tab-btn svg { width: 22px; height: 22px; }
+  .tab-btn .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab-btn.active { color: var(--ink); font-weight: 800; }
+  .tab-btn.active .ico { background: var(--chip); }
+  @media (max-width: 370px) {
+    main { padding-left: 14px; padding-right: 14px; }
+    .topbar { padding-left: 14px; padding-right: 14px; }
+    .tab-btn { font-size: 10px; }
+    .tab-btn .ico { width: 40px; }
+    .seg button { padding: 6px 10px; }
+    .label { padding-left: 12px; padding-right: 12px; }
+    .label-title { font-size: 21px; }
+    .label-who { font-size: 12px; }
+    .label-cols, .label-row { grid-template-columns: 1fr auto 92px; gap: 8px; }
+    .targets th, .targets td { font-size: 12.5px; padding-left: 2px; padding-right: 2px; }
+  }
+  @media (max-width: 340px) {
+    .tab-btn { font-size: 9px; }
+    .tab-btn .ico { width: 34px; }
+    .brand { font-size: 30px; }
+    .seg button { padding: 5px 8px; font-size: 13px; }
+    .label-row .t { font-size: 12px; }
+  }
+
+  /* ---------- Hoja de receta ---------- */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+  }
+  .backdrop.open { opacity: 1; }
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    max-width: 600px;
+    max-height: 92vh;
+    max-height: 92dvh;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.25);
+    transform: translateY(100%);
+    transition: transform 0.26s cubic-bezier(.2, .8, .2, 1);
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet-top { flex: 0 0 auto; padding: 8px 14px 4px 20px; touch-action: none; }
+  .grabber { width: 40px; height: 5px; margin: 0 auto 4px; border-radius: 3px; background: var(--line); }
+  .sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .sheet-close { background: var(--paper); border-color: var(--paper); flex: 0 0 auto; }
+  .sheet-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 6px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+  .kicker { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .kicker svg { width: 18px; height: 18px; }
+  .sheet-title .dish { padding: 0 7px; border-radius: 8px; }
+  .sheet-title {
+    margin: 2px 0 0;
+    font-size: 34px;
+    font-weight: 900;
+    font-stretch: 66%;
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+  }
+  .sheet-note { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+  .sheet-person { margin-top: 14px; }
+  .ing-list { list-style: none; margin: 0; padding: 4px 16px; }
+  .ing { padding: 12px 0; }
+  .ing + .ing { border-top: 1px solid var(--line); }
+  .ing-main { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+  .ing-name { font-size: 16px; line-height: 1.3; }
+  .ing-qty { font-size: 19px; font-weight: 800; font-stretch: 78%; white-space: nowrap; text-align: right; }
+  .ing-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 0 6px 1px;
+    border-radius: 5px;
+    background: var(--chip);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-2);
+    vertical-align: 1px;
+  }
+  .when { margin: 18px 2px 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+  .when b { color: var(--ink); }
+  .missing { margin: 18px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet, .backdrop { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-row">
+      <h1 class="brand">dieta<span class="dot">.</span></h1>
+      <div class="topbar-actions">
+        <div id="personSeg"></div>
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Cambiar entre modo claro y oscuro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <nav class="tabbar" aria-label="Secciones">
+    <div class="tabbar-inner" id="tabbar"></div>
+  </nav>
+</div>
+
+<div class="backdrop hidden" id="backdrop"></div>
+<section class="sheet hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-top">
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-bar">
+      <div class="kicker" id="sheetKicker"></div>
+      <button class="icon-btn sheet-close" id="sheetClose" type="button" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="sheet-body" id="sheetBody"></div>
+</section>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
